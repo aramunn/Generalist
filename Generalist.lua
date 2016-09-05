@@ -193,6 +193,7 @@ function Generalist:OnDocLoaded()
 		
 		-- Register the slash command
 		Apollo.RegisterSlashCommand("gen", "OnGeneralistOn", self)
+		Apollo.RegisterSlashCommand("genc", "OnGeneralistContracts", self)
 		
 		-- Register handlers for events, slash commands and timer, etc.
 		-- e.g. Apollo.RegisterEventHandler("KeyDown", "OnKeyDown", self)
@@ -1005,6 +1006,33 @@ function Generalist:GetCharDyes()
 	
 end
 
+---------------------------
+-- Contract Command Line --
+---------------------------
+
+function Generalist:OnGeneralistContracts(strCmd, strParam)
+	strParam = strParam or ""
+	Print("Generalist Contracts searching for \""..strParam.."\"")
+	for nContractId, strContractInfo in pairs(self.common.tSeenContracts) do
+		if string.find(string.lower(strContractInfo), string.lower(strParam)) then
+			Print("  "..strContractInfo)
+			local bFoundAny = false
+			for strCharacterName, tCharacterData in pairs(self.altData) do
+				if tCharacterData.contracts then
+					for eContractType, tContractStuff in ipairs(tCharacterData.contracts) do
+						if tContractStuff.tCurrent and tContractStuff.tCurrent[nContractId] then
+							Print("    + "..strCharacterName)
+							bFoundAny = true
+						end
+					end
+				end
+			end
+			if not bFoundAny then Print("    - (none)") end
+		end
+	end
+	Print("Generalist Contracts search done")
+end
+
 ----------------------------
 -- Character's contracts
 ----------------------------
@@ -1022,16 +1050,18 @@ end
 
 local function getContractInfoString(arObjectives, bIgnoreN)
 	local strContractInfo = ""
+	local strDescription = ""
 	for idx, tObjective in pairs(arObjectives) do
+		strDescription = string.gsub(tObjective.strDescription, '<.->', "")
 		if tObjective.nCompleted <= tObjective.nNeeded then
 			if not bIgnoreN  and tObjective.nNeeded > 1 then
 				strContractInfo = "["..tostring(tObjective.nCompleted).."/"..tostring(tObjective.nNeeded).."] "
 			end
-			strContractInfo = strContractInfo..string.gsub(tObjective.strDescription, '<.->', "")
+			strContractInfo = strContractInfo..strDescription
 			break
 		end
 	end
-	return strContractInfo
+	return strContractInfo, strDescription
 end
 
 local function getContractStatus(contract)
@@ -1053,14 +1083,20 @@ local function getContractStatusColor(eContractStatus, bIsFreshData)
 	return "black"
 end
 
-local function makeContractTable(contract)
+function Generalist:MakeContractTable(contract)
 	local quest = contract:GetQuest()
+	local nTier = getContractTier(contract)
+	local strTitle = quest:GetTitle()
+	local strObjective, strDescription = getContractInfoString(quest:GetVisibleObjectiveData())
 	local tContract = {
-		nTier = getContractTier(contract),
-		strTitle = quest:GetTitle(),
-		strObjective = getContractInfoString(quest:GetVisibleObjectiveData()),
+		nTier = nTier,
+		strTitle = strTitle,
+		strObjective = strObjective,
 		eContractStatus = getContractStatus(contract),
 	}
+	self.common = self.common or {}
+	self.common.tSeenContracts = self.common.tSeenContracts or {}
+	self.common.tSeenContracts[contract:GetId()] = "[T"..tostring(nTier).."] "..strTitle..": "..strDescription
 	return tContract
 end
 
@@ -1117,15 +1153,15 @@ function Generalist:GetCharContracts()
 			tAll = {},
 		}
 		for idx, contract in ipairs(arContracts) do
-			contracts[eContractType].tAll[contract:GetId()] = makeContractTable(contract)
+			contracts[eContractType].tAll[contract:GetId()] = self:MakeContractTable(contract)
 		end
 	end
 	
 	-- Get current contracts
 	for eContractType, arContracts in pairs(ContractsLib.GetActiveContracts()) do
 		for idx, contract in ipairs(arContracts) do
-			contracts[eContractType].tCurrent[contract:GetId()] = makeContractTable(contract)
-			contracts[eContractType].tAll[contract:GetId()] = makeContractTable(contract)
+			contracts[eContractType].tCurrent[contract:GetId()] = self:MakeContractTable(contract)
+			contracts[eContractType].tAll[contract:GetId()] = self:MakeContractTable(contract)
 		end
 	end
 	
@@ -1494,7 +1530,11 @@ function Generalist:OnSave(eLevel)
 	self.altData.tmp = nil
 
 	-- Then return the table we've been using!
-	return self.altData
+	return {
+		version = 1,
+		common = self.common,
+		altData = self.altData,
+	}
 end
 
 function Generalist:OnRestore(eLevel, tData)
@@ -1504,7 +1544,12 @@ function Generalist:OnRestore(eLevel, tData)
     end
 	
 	-- And load this into our data structure
-	self.altData = tData
+	if tData.version then
+		self.common = tData.common
+		self.altData = tData.altData
+	else
+		self.altData = tData
+	end
 	
 	-- Loop through each character and add empty tables
 	-- for backwards compatibility.
