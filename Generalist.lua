@@ -1012,7 +1012,7 @@ end
 
 function Generalist:OnGeneralistContracts(strCmd, strParam)
 	strParam = strParam or ""
-	Print("Generalist Contracts searching for \""..strParam.."\"")
+	Print("====================")
 	for nContractId, strContractInfo in pairs(self.common.tSeenContracts) do
 		if string.find(string.lower(strContractInfo), string.lower(strParam)) then
 			Print("  "..strContractInfo)
@@ -1030,7 +1030,7 @@ function Generalist:OnGeneralistContracts(strCmd, strParam)
 			if not bFoundAny then Print("    - (none)") end
 		end
 	end
-	Print("Generalist Contracts search done")
+	Print("====================")
 end
 
 ----------------------------
