@@ -1012,6 +1012,10 @@ end
 
 function Generalist:OnGeneralistContracts(strCmd, strParam)
 	strParam = strParam or ""
+	if strParam == "" then
+		self:OpenContracts()
+		return
+	end
 	Print("====================")
 	for nContractId, strContractInfo in pairs(self.common.tSeenContracts) do
 		if string.find(string.lower(strContractInfo), string.lower(strParam)) then
@@ -1424,7 +1428,7 @@ function Generalist:OpenContracts( wndHandler, wndControl, eMouseButton )
 	end
 		
 	-- Set up the contracts window
-	self.wndContracts = Apollo.LoadForm(self.xmlDoc, "ContractsForm", self.wndMain, self)
+	self.wndContracts = Apollo.LoadForm(self.xmlDoc, "ContractsForm", nil, self)
 	
 	-- If it doesn't exist, we need to complain.
 	if self.wndContracts == nil then
